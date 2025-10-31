@@ -10,8 +10,11 @@ wire [31:0] RD1_ID, RD2_ID, ImmExt_ID;
 wire [4:0] Rd_ID;
 wire [2:0] ALUControl_ID;
 wire [1:0] ImmSrc_ID;
+wire [1:0] size_ID;        // NOVO: tamanho da operação de memória
+wire sign_ext_ID;          // NOVO: tipo de extensão (sinal/zero
 wire RegWrite_ID, MemWrite_ID, Branch_ID, ALUSrc_ID, ResultSrc_ID;
 reg [31:0] Instr_ID, PC_ID;
+
 
 // --- Estágio EXE (Execute) ---
 wire [31:0] ALUResult_EXE, WriteData_EXE, PCTarget_EXE;
@@ -20,12 +23,16 @@ reg [31:0] RD1_EXE, RD2_EXE, PC_EXE, ImmExt_EXE;
 reg [4:0] Rd_EXE;
 reg [2:0] ALUControl_EXE;
 reg Branch_EXE, ALUSrc_EXE, RegWrite_EXE, MemWrite_EXE, ResultSrc_EXE;
+reg [1:0] size_EXE;         // NOVO: tamanho da operação de memória
+reg sign_ext_EXE;          // NOVO: tipo de extensão (sinal/zero
 
 // --- Estágio MEM (Memory Access) ---
 wire [31:0] ReadData_MEM;
-reg [31:0] WriteData_MEM, ALUResult_MEM;
+wire [31:0] WriteData_MEM, ALUResult_MEM;
 reg [4:0] Rd_MEM;
 reg MemWrite_MEM, ResultSrc_MEM, RegWrite_MEM;
+reg [1:0] size_MEM;         // NOVO: tamanho da operação de memória
+reg sign_ext_MEM;          // NOVO: tipo de extensão (sinal/zero)
 
 // --- Estágio WB (Write Back) ---
 wire [31:0] Result_WB;
@@ -53,17 +60,20 @@ always @(posedge clk) begin
     MemWrite_EXE <= MemWrite_ID;
     ResultSrc_EXE <= ResultSrc_ID;
     RegWrite_EXE <= RegWrite_ID;
+    size_EXE <= size_ID;         // NOVO: tamanho da operação de memória
+    sign_ext_EXE <= sign_ext_ID; // NOVO: tipo de extensão
 
     // --- Propagação do estágio EXE para o MEM ---
     // O resultado da ALU, o dado a ser escrito na memória (vindo de RD2), o Rd e os
     // sinais de controle para MEM e WB avançam para o estágio de memória.
     // Os sinais Branch, ALUSrc e ALUControl não avançam, pois foram usados em EXE.
-    ALUResult_MEM <= ALUResult_EXE;
-    WriteData_MEM <= WriteData_EXE;
+  
     Rd_MEM <= Rd_EXE;
     MemWrite_MEM <= MemWrite_EXE;
     ResultSrc_MEM <= ResultSrc_EXE;
     RegWrite_MEM <= RegWrite_EXE;
+    size_MEM <= size_EXE;         // NOVO: tamanho da operação de memória
+    sign_ext_MEM <= sign_ext_EXE; // NOVO: tipo de extensão 
 
     // --- Propagação do estágio MEM para o WB ---
     // O dado lido da memória, o resultado da ALU (que passou direto pelo estágio MEM),
@@ -75,6 +85,9 @@ always @(posedge clk) begin
     ResultSrc_WB <= ResultSrc_MEM;
     RegWrite_WB <= RegWrite_MEM;
 end
+
+assign ALUResult_MEM = ALUResult_EXE;
+assign WriteData_MEM = WriteData_EXE;
 
 Fetch_stage INSTRUCTION_FETCH (
     .clk(clk),
@@ -103,7 +116,9 @@ Decoder_stage INSTRUCTION_DECODER (
     .RD1_ID(RD1_ID),
     .RD2_ID(RD2_ID),
     .ImmExt_ID(ImmExt_ID),
-    .PC_ID(PC_ID)
+    .PC_ID(PC_ID),
+    .size_ID(size_ID),
+    .sign_ext_ID(sign_ext_ID)
 );
 
 Execution_stage EXECUTE (
@@ -132,7 +147,9 @@ Memory_stage MEMORY (
     .ALUResult_MEM(ALUResult_MEM),
     .Rd_MEM(Rd_MEM),
     .ResultSrc_MEM(ResultSrc_MEM),
-    .RegWrite_MEM(RegWrite_MEM)
+    .RegWrite_MEM(RegWrite_MEM),
+    .size_MEM(size_MEM),           // NOVO: tamanho da operação de memória
+    .sign_ext_MEM(sign_ext_MEM)    // NOVO: tipo de extensão (sinal/zero    
 );
 
 WriteBack_stage WriteBack (

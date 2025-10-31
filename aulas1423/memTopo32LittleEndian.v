@@ -1,195 +1,54 @@
-module memReadManager (
-    input wire [31:0] dout, //! Palavra lida da memória (sempre 32 bits)
-    input wire [1:0] addr_offset , //! addr[1:0] (offset do byte)
-    input wire [1:0] size, //! funct3[1:0] 00: byte, 01: half-word, 10: word
-    input wire sign_extend , //! funct3[2] 0: extensão de sinal , 1: zero extension
-    output reg [31:0] rdata //! Dado lido final , com extensão adequada
-);
-reg [7:0] byte_data;
-reg [15:0] halfword_data;
-always @(*) begin
-    case (addr_offset)
-        2'b00: begin
-        byte_data = dout[7:0];
-        halfword_data = dout[15:0];
-        end
-        2'b01: begin
-        byte_data = dout[15:8];
-        halfword_data = dout[23:8];
-        end
-        2'b10: begin
-        byte_data = dout[23:16];
-        halfword_data = dout[31:16];
-        end
-        2'b11: begin
-        byte_data = dout[31:24];
-        halfword_data = {8'b0, dout[31:24]}; // inválido p/ halfword
-        end
-        default: begin
-        byte_data = 8'b0;
-        halfword_data = 16'b0;
-        end
-    endcase
-    case (size)
-        2'b00: begin // byte
-        rdata = ~sign_extend ?
-        {{24{byte_data[7]}}, byte_data} :
-        {24'b0, byte_data};
-        end
-        2'b01: begin // half-word
-        rdata = ~sign_extend ?
-        {{16{halfword_data[15]}}, halfword_data} :
-        {16'b0, halfword_data};
-        end
-        2'b10: begin // word
-        rdata = dout;
-        end
-        default: begin // valor padrao para debug "DEAD BEEF"
-        rdata = 32'hDEADBEEF; // erro leitura inválida
-        end
-    endcase
-end
-endmodule
-
-module memory_write_first #(
-    parameter DATA_WIDTH = 8,
-    parameter ADDRESS_WIDTH = 4
-) (
-    input wire clk,
-    input wire we,
-    input wire [ADDRESS_WIDTH -1:0] addr,
-    input wire [DATA_WIDTH -1:0] din,
-    output reg [DATA_WIDTH -1:0] dout
-);
-    localparam DEPTH = 1 << ADDRESS_WIDTH;
-    reg [DATA_WIDTH -1:0] mem [0:DEPTH -1];
-    always @(posedge clk) begin
-        if (we) mem[addr] <= din;
-        dout <= we ? din : mem[addr]; // tem prioridade
-    end
-    always @(*) dout <= mem[addr]; //leitura assinc.
-endmodule
-
-module memByteAddressable32WF #(
-parameter DATA_WIDTH = 32,
-parameter ADDRESS_WIDTH = 4
-) (
-input wire clk,
-input wire [3:0] byteEnable ,
-input wire [ADDRESS_WIDTH -1:0] addr,
-input wire [DATA_WIDTH -1:0] din,
-output wire [DATA_WIDTH -1:0] dout
-);
-
-memory_write_first
-#(.DATA_WIDTH(8),
-.ADDRESS_WIDTH(4)) mem_byte0( // LSB - byteEnable[0] - din[7:0]
-.clk(clk),
-.we(byteEnable[0]),
-.addr(addr),
-.din(din[7:0]),
-.dout(dout[7:0])
-);
-
-memory_write_first
-#(.DATA_WIDTH(8),
-.ADDRESS_WIDTH(4)) mem_byte1( // byteEnable[1] - din[15:8]
-.clk(clk),
-.we(byteEnable[1]),
-.addr(addr),
-.din(din[15:8]),
-.dout(dout[15:8])
-);
-
-memory_write_first
-#(.DATA_WIDTH(8),
-.ADDRESS_WIDTH(4)) mem_byte2( // byteEnable[2] - din[23:16]
-.clk(clk),
-.we(byteEnable[2]),
-.addr(addr),
-.din(din[23:16]),
-.dout(dout[23:16])
-);
-
-memory_write_first
-#(.DATA_WIDTH(8),
-.ADDRESS_WIDTH(4)) mem_byte3( // MSB - byteEnable[3] - din[31:24]
-.clk(clk),
-.we(byteEnable[3]),
-.addr(addr),
-.din(din[31:24]),
-.dout(dout[31:24])
-);
-
-endmodule
-
-module byteEnableDecoder (
-input wire [1:0] addr_offset , //! addr[1:0] mem alinhada
-input wire [1:0] size, //! funct3[1:0] 00: byte, 01: half, 10: word
-output reg [3:0] byteEnable , //! Saida em One Hot para Memoria
-input writeEnable //! Habilita escrita (vem do controle)
-);
-always @(*) begin
-    if (!writeEnable)
-        byteEnable = 4'b0000;
-    else begin
-        case (size)
-            2'b00: byteEnable = 4'b0001 << addr_offset; // SB
-            2'b01: begin // SH
-            case (addr_offset)
-                2'b00: byteEnable = 4'b0011;
-                2'b01: byteEnable = 4'b0110;
-                2'b10: byteEnable = 4'b1100;
-                default: byteEnable = 4'b0000; // desalinhado
-            endcase
-            end
-            2'b10: byteEnable = 4'b1111; // SW
-            default: byteEnable = 4'b0000;
-        endcase
-    end
-end
-endmodule
-
 module memTopo32LittleEndian #(
-parameter DATA_WIDTH = 32,
-parameter ADDRESS_WIDTH = 6
-) (
-input wire clk, //! Clock
-input wire [1:0] size, //! funct3[1:0] 00: byte, 01: half, 10: word
-input wire [ADDRESS_WIDTH -1:0] addr, //! Endereco
-input wire [DATA_WIDTH -1:0] din, //! Entrada de dados
-input wire sign_ext , //! funct3[2] 0: extensão de sinal , 1: zero extension
-input wire writeEnable , //! Habilita escrita (vem do controle)
-output wire [DATA_WIDTH -1:0] dout //! Saida de dados
+
+    parameter DATA_WIDTH    = 32,
+    parameter ADDRESS_WIDTH = 5
+) ( 
+    input  wire                     clk,        // Clock
+    input  wire [1:0]               size,       // funct3[1:0] 00: byte, 01: half, 10: word
+    input  wire [ADDRESS_WIDTH-1:0] addr,       // Endereco em BYTES
+    input  wire [DATA_WIDTH-1:0]    din,        // Entrada de dados (rs2)
+    input  wire                     sign_ext,   // funct3[2] 0: extensão de sinal , 1: zero extension
+    input  wire                     writeEnable,// Habilita escrita (vem do controle)
+    output wire [DATA_WIDTH-1:0]    dout        // Saida de dados (rdata)
 );
 
-wire [3:0] byteEnable;
-wire [31:0] mem_dout;
-wire [31:0] rdata;
+    wire [3:0]  byteEnable;
+    wire [31:0] mem_dout;
+    wire [31:0] rdata;
+    wire [31:0] adjusted_din; // Sinal ajustado para din
 
-byteEnableDecoder decoder (
-.addr_offset(addr[1:0]),
-.size(size),
-.byteEnable(byteEnable),
-.writeEnable(writeEnable)
-);
+    // Ajusta din com base no addr_offset para byte e half-word
+    assign adjusted_din = (size == 2'b10) ? din : (din << (8 * addr[1:0]));
 
-memByteAddressable32WF mem_inst (
-.clk(clk),
-.byteEnable(byteEnable),
-.addr(addr[5:2]), // endereçamento por palavra (alinhado)
-.din(din),
-.dout(mem_dout)
-);
+    // Decodifica byte enables a partir do offset de byte
+    byteEnableDecoder decoder (
+        .addr_offset(addr[1:0]),
+        .size(size),
+        .writeEnable(writeEnable),
+        .byteEnable(byteEnable)
+    );
 
-memReadManager read_inst (
-.dout(mem_dout),
-.addr_offset(addr[1:0]),
-.size(size),
-.sign_extend(sign_ext),
-.rdata(rdata)
-);
+    // Memória byte-endereçável: passa endereço em bytes
+    memByteAddressable32WF #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .ADDRESS_WIDTH(ADDRESS_WIDTH)
+    ) mem_inst (
+        .clk(clk),
+        .byteEnable(byteEnable),
+        .addr(addr),
+        .din(adjusted_din), 
+        .dout(mem_dout)
+    );
 
-assign dout = rdata;
+    // Ajusta leitura conforme offset/tamanho e extensão
+    memReadManager read_inst (
+        .dout(mem_dout),
+        .addr_offset(addr[1:0]),
+        .size(size),
+        .sign_extend(sign_ext),
+        .rdata(rdata)
+    );
+
+    assign dout = rdata;
 
 endmodule

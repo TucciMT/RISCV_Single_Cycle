@@ -8,20 +8,25 @@ module Control_Unit (
     output [1:0] ImmSrc,
     output RegWrite,
     output [2:0] ALUControl,
-    output Branch
+    output Branch,
+    output [1:0] size,   
+    output sign_ext    
 );
 
 wire [1:0] ALUOp;
 
 Main_decoder MainDecoder (
 .Op(Op),
+.funct3(funct3),
 .Branch(Branch),
 .ResultSrc(ResultSrc),
 .MemWrite(MemWrite),
 .ALUSrc(ALUSrc),
 .ImmSrc(ImmSrc),
 .RegWrite(RegWrite),
-.ALUOp(ALUOp)
+.ALUOp(ALUOp),
+.size(size),   
+.sign_ext(sign_ext)  
 );
 
 ALU_decoder ALUDecoder (

@@ -14,10 +14,12 @@ module Execution_stage (
     input wire MemWrite_EXE,
     input wire ResultSrc_EXE,
     input wire [4:0] Rd_EXE
+
 );
 
 wire [31:0] ALUSrcB; //!Entrada B da ALU
 wire Zero_EXE;
+
 
 assign PCSrc_EXE = Zero_EXE & Branch_EXE;
 assign WriteData_EXE = RD2_EXE;

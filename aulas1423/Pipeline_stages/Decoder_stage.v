@@ -16,7 +16,9 @@ module Decoder_stage (
     output wire [31:0] RD1_ID,
     output wire [31:0] RD2_ID,
     output wire [31:0] ImmExt_ID,
-    input wire [31:0] PC_ID
+    input wire [31:0] PC_ID,
+    output wire [1:0] size_ID,        // NOVO: tamanho da operação de memória
+    output wire sign_ext_ID          // NOVO: tipo de extensão (sinal/zero
 );
 
 wire [24:0] InstrExtend;
@@ -61,7 +63,9 @@ Control_Unit CONTROL_UNIT (
     .ImmSrc(ImmSrc_ID),        //!Sinal de seleção do tipo de extensão a ser realizada pelo EXTEND
     .RegWrite(RegWrite_ID),    //!Sinal de habilitação de escrita (ativo em 1) de REGISTER_FILE
     .ALUControl(ALUControl_ID), //!Sinal de seleção da operação realizada pela ALU
-    .Branch(Branch_ID)
+    .Branch(Branch_ID),
+    .size(size_ID),    //  00=byte, 01=half, 10=word
+    .sign_ext(sign_ext_ID)       //  0=sign extend, 1
 );
 
 //EXTEND
